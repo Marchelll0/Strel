@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>Cyber Shooter: Power-ups</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+    }
+
+    body {
+      background: #060913;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      height: 100vh;
+      overflow: hidden;
+      padding: 10px;
+    }
+
+    /* Верхняя панель: жизни, статус бонусов и счет */
+    .top-bar {
+      display: flex;
+      width: 100%;
+      max-width: 360px;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 14px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(0, 240, 255, 0.2);
+      border-radius: 14px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+    }
+
+    .lives {
+      color: #ff3366;
+      font-size: 18px;
+      letter-spacing: 4px;
+      text-shadow: 0 0 10px rgba(255, 51, 102, 0.6);
+    }
+
+    .powerup-indicators {
+      display: flex;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .badge {
+      padding: 3px 8px;
+      border-radius: 8px;
+      display: none;
+    }
+
+    .badge-shield {
+      background: rgba(0, 240, 255, 0.2);
+      border: 1px solid #00f0ff;
+      color: #00f0ff;
+      box-shadow: 0 0 8px rgba(0, 240, 255, 0.4);
+    }
+
+    .badge-double {
+      background: rgba(189, 0, 255, 0.2);
+      border: 1px solid #bd00ff;
+      color: #bd00ff;
+      box-shadow: 0 0 8px rgba(189, 0, 255, 0.4);
+    }
+
+    .score-box {
+      text-align: right;
+    }
+
+    .score-title {
+      font-size: 10px;
+      color: #7b88a8;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .score-val {
+      font-size: 20px;
+      font-weight: 800;
+      color: #00f0ff;
+      text-shadow: 0 0 10px rgba(0, 240, 255, 0.5);
+    }
+
+    /* Игровое полотно */
+    canvas {
+      background: #0b0f19;
+      border: 2px solid rgba(0, 240, 255, 0.25);
+      border-radius: 16px;
+      box-shadow: 0 0 25px rgba(0, 240, 255, 0.1);
+      display: block;
+    }
+
+    /* Панель управления */
+    .controls {
+      display: flex;
+      width: 100%;
+      max-width: 360px;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 6px;
+    }
+
+    .move-group {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn {
+      background: #151c2c;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #e6edf3;
+      border-radius: 18px;
+      font-size: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 6px 14px rgba(0, 0, 0, 0.4);
+      transition: all 0.08s ease;
+      outline: none;
+      height: 64px;
+      width: 76px;
+    }
+
+    .btn:active {
+      transform: scale(0.92);
+    }
+
+    .btn-fire {
+      width: 110px;
+      background: rgba(255, 51, 102, 0.15);
+      border-color: #ff3366;
+      color: #ff3366;
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      text-shadow: 0 0 8px rgba(255, 51, 102, 0.5);
+      box-shadow: 0 0 15px rgba(255, 51, 102, 0.2);
+    }
+
+    .btn-fire:active {
+      background: #ff3366;
+      color: #0b0f19;
+      box-shadow: 0 0 20px #ff3366;
+    }
+
+    .btn-move:active {
+      background: #00f0ff;
+      color: #0b0f19;
+      box-shadow: 0 0 15px #00f0ff;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="top-bar">
+    <div class="lives" id="livesEl">♥♥♥</div>
+    <div class="powerup-indicators">
+      <div class="badge badge-shield" id="shieldBadge">ЩИТ</div>
+      <div class="badge badge-double" id="doubleBadge">2X ЛАЗЕР</div>
+    </div>
+    <div class="score-box">
+      <div class="score-title">Очки</div>
+      <div class="score-val" id="scoreEl">0</div>
+    </div>
+  </div>
+
+  <canvas id="gameCanvas" width="340" height="420"></canvas>
+
+  <div class="controls">
+    <div class="move-group">
+      <button class="btn btn-move" id="btn-left">◀</button>
+      <button class="btn btn-move" id="btn-right">▶</button>
+    </div>
+    <button class="btn btn-fire" id="btn-fire">FIRE</button>
+  </div>
+
+  <script>
+    const tg = window.Telegram?.WebApp;
+    if (tg) {
+      tg.ready();
+      tg.expand();
+    }
+
+    function haptic(type = 'light') {
+      if (tg?.HapticFeedback) {
+        if (type === 'error') tg.HapticFeedback.notificationOccurred('error');
+        else if (type === 'success') tg.HapticFeedback.notificationOccurred('success');
+        else tg.HapticFeedback.impactOccurred(type);
+      }
+    }
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreEl = document.getElementById('scoreEl');
+    const livesEl = document.getElementById('livesEl');
+    const shieldBadge = document.getElementById('shieldBadge');
+    const doubleBadge = document.getElementById('doubleBadge');
+
+    let score = 0;
+    let lives = 3;
+    let gameOver = false;
+
+    // Состояние корабля и бонусов
+    const player = {
+      x: canvas.width / 2 - 16,
+      y: canvas.height - 45,
+      w: 32,
+      h: 24,
+      speed: 5,
+      hasShield: false,
+      doubleLaserUntil: 0
+    };
+
+    let moveLeft = false;
+    let moveRight = false;
+    let isFiring = false;
+    let lastFireTime = 0;
+
+    let bullets = [];
+    let enemies = [];
+    let powerups = []; // Выпадающие бонусы
+    let particles = [];
+    let stars = [];
+
+    // Звездное поле
+    for (let i = 0; i < 45; i++) {
+      stars.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        size: Math.random() * 1.8 + 0.5,
+        speed: Math.random() * 1.5 + 0.5
+      });
+    }
+
+    function spawnEnemy() {
+      if (gameOver) return;
+      enemies.push({
+        x: Math.random() * (canvas.width - 28),
+        y: -30,
+        w: 26,
+        h: 22,
+        speed: Math.random() * 1.8 + 1.6
+      });
+    }
+    setInterval(spawnEnemy, 950);
+
+    function createExplosion(x, y, color) {
+      for (let i = 0; i < 14; i++) {
+        particles.push({
+          x: x,
+          y: y,
+          vx: (Math.random() - 0.5) * 6,
+          vy: (Math.random() - 0.5) * 6,
+          life: 1,
+          color: color
+        });
+      }
+    }
+
+    // Шанс дропа бонуса при уничтожении врага (30%)
+    function trySpawnPowerup(x, y) {
+      if (Math.random() < 0.32) {
+        const type = Math.random() < 0.5 ? 'shield' : 'double';
+        powerups.push({
+          x: x,
+          y: y,
+          size: 18,
+          speed: 1.8,
+          type: type
+        });
+      }
+    }
+
+    function fireBullet() {
+      const now = Date.now();
+      if (now - lastFireTime > 190) {
+        const isDouble = now < player.doubleLaserUntil;
+
+        if (isDouble) {
+          // Сдвоенный лазер (фиолетовый)
+          bullets.push({ x: player.x + 3, y: player.y - 4, w: 4, h: 12, speed: 8.5, color: '#bd00ff' });
+          bullets.push({ x: player.x + player.w - 7, y: player.y - 4, w: 4, h: 12, speed: 8.5, color: '#bd00ff' });
+        } else {
+          // Обычный лазер (голубой)
+          bullets.push({ x: player.x + player.w / 2 - 2, y: player.y - 6, w: 4, h: 12, speed: 8, color: '#00f0ff' });
+        }
+
+        haptic('light');
+        lastFireTime = now;
+      }
+    }
+
+    function resetGame() {
+      score = 0;
+      lives = 3;
+      gameOver = false;
+      player.x = canvas.width / 2 - 16;
+      player.hasShield = false;
+      player.doubleLaserUntil = 0;
+      bullets = [];
+      enemies = [];
+      powerups = [];
+      particles = [];
+      scoreEl.textContent = '0';
+      livesEl.textContent = '♥♥♥';
+      updateBadges();
+    }
+
+    function updateBadges() {
+      shieldBadge.style.display = player.hasShield ? 'block' : 'none';
+      const isDouble = Date.now() < player.doubleLaserUntil;
+      doubleBadge.style.display = isDouble ? 'block' : 'none';
+    }
+
+    function update() {
+      if (gameOver) return;
+
+      const now = Date.now();
+      updateBadges();
+
+      if (moveLeft && player.x > 5) player.x -= player.speed;
+      if (moveRight && player.x < canvas.width - player.w - 5) player.x += player.speed;
+      if (isFiring) fireBullet();
+
+      // Звезды
+      stars.forEach(s => {
+        s.y += s.speed;
+        if (s.y > canvas.height) {
+          s.y = 0;
+          s.x = Math.random() * canvas.width;
+        }
+      });
+
+      // Пули
+      for (let i = bullets.length - 1; i >= 0; i--) {
+        const b = bullets[i];
+        b.y -= b.speed;
+        if (b.y < -20) bullets.splice(i, 1);
+      }
+
+      // Падающие бонусы
+      for (let i = powerups.length - 1; i >= 0; i--) {
+        const p = powerups[i];
+        p.y += p.speed;
+
+        // Коллизия бонуса с кораблем игрока
+        if (p.x > player.x - 10 && p.x < player.x + player.w + 10 &&
+            p.y > player.y - 10 && p.y < player.y + player.h + 10) {
+          
+          if (p.type === 'shield') {
+            player.hasShield = true;
+          } else if (p.type === 'double') {
+            player.doubleLaserUntil = now + 10000; // 10 секунд действия
+          }
+
+          createExplosion(p.x, p.y, p.type === 'shield' ? '#00f0ff' : '#bd00ff');
+          haptic('success');
+          powerups.splice(i, 1);
+          continue;
+        }
+
+        if (p.y > canvas.height + 30) powerups.splice(i, 1);
+      }
+
+      // Враги
+      for (let i = enemies.length - 1; i >= 0; i--) {
+        const e = enemies[i];
+        e.y += e.speed;
+
+        // Пуля попала во врага
+        for (let j = bullets.length - 1; j >= 0; j--) {
+          const b = bullets[j];
+          if (b.x < e.x + e.w && b.x + b.w > e.x && b.y < e.y + e.h && b.y + b.h > e.y) {
+            createExplosion(e.x + e.w / 2, e.y + e.h / 2, '#ffaa00');
+            haptic('medium');
+            trySpawnPowerup(e.x + e.w / 2, e.y + e.h / 2);
+            enemies.splice(i, 1);
+            bullets.splice(j, 1);
+            score += 20;
+            scoreEl.textContent = score;
+            break;
+          }
+        }
+
+        // Враг столкнулся с игроком
+        if (e && player.x < e.x + e.w && player.x + player.w > e.x && player.y < e.y + e.h && player.y + player.h > e.y) {
+          enemies.splice(i, 1);
+
+          if (player.hasShield) {
+            // Щит поглощает урон
+            player.hasShield = false;
+            createExplosion(player.x + player.w / 2, player.y + player.h / 2, '#00f0ff');
+            haptic('medium');
+          } else {
+            // Теряем жизнь
+            createExplosion(player.x + player.w / 2, player.y + player.h / 2, '#ff3366');
+            haptic('error');
+            lives--;
+            livesEl.textContent = '♥'.repeat(Math.max(0, lives));
+            if (lives <= 0) {
+              gameOver = true;
+              setTimeout(() => {
+                alert('Корабль уничтожен! Счет: ' + score);
+                resetGame();
+              }, 100);
+            }
+          }
+          continue;
+        }
+
+        if (e && e.y > canvas.height + 20) enemies.splice(i, 1);
+      }
+
+      // Частицы
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life -= 0.04;
+        if (p.life <= 0) particles.splice(i, 1);
+      }
+    }
+
+    function draw() {
+      ctx.fillStyle = '#080c16';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Звезды
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+      stars.forEach(s => {
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // Отрисовка бонусов
+      powerups.forEach(p => {
+        ctx.save();
+        const isShield = p.type === 'shield';
+        const color = isShield ? '#00f0ff' : '#bd00ff';
+
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = color;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.8)';
+
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size / 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = color;
+        ctx.font = 'bold 11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(isShield ? 'S' : '2X', p.x, p.y);
+        ctx.restore();
+      });
+
+      // Корабль игрока
+      ctx.save();
+      ctx.shadowBlur = 15;
+      ctx.shadowColor = '#00f0ff';
+      ctx.fillStyle = '#00f0ff';
+      ctx.beginPath();
+      ctx.moveTo(player.x + player.w / 2, player.y);
+      ctx.lineTo(player.x + player.w, player.y + player.h);
+      ctx.lineTo(player.x + player.w / 2, player.y + player.h - 6);
+      ctx.lineTo(player.x, player.y + player.h);
+      ctx.closePath();
+      ctx.fill();
+
+      // Силовой купол щита вокруг корабля
+      if (player.hasShield) {
+        ctx.beginPath();
+        ctx.arc(player.x + player.w / 2, player.y + player.h / 2, player.w * 0.85, 0, Math.PI * 2);
+        ctx.strokeStyle = '#00f0ff';
+        ctx.lineWidth = 2.5;
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = '#00f0ff';
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      // Лазеры
+      bullets.forEach(b => {
+        ctx.save();
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = b.color;
+        ctx.fillStyle = b.color;
+        ctx.fillRect(b.x, b.y, b.w, b.h);
+        ctx.restore();
+      });
+
+      // Враги
+      enemies.forEach(e => {
+        ctx.save();
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = '#ff3366';
+        ctx.fillStyle = '#ff3366';
+        ctx.beginPath();
+        ctx.moveTo(e.x + e.w / 2, e.y + e.h);
+        ctx.lineTo(e.x + e.w, e.y);
+        ctx.lineTo(e.x, e.y);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      });
+
+      // Частицы
+      particles.forEach(p => {
+        ctx.save();
+        ctx.globalAlpha = Math.max(p.life, 0);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x, p.y, 3, 3);
+        ctx.restore();
+      });
+    }
+
+    function loop() {
+      update();
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    const btnLeft = document.getElementById('btn-left');
+    const btnRight = document.getElementById('btn-right');
+    const btnFire = document.getElementById('btn-fire');
+
+    function bindTouch(btn, onStart, onEnd) {
+      btn.addEventListener('touchstart', (e) => { e.preventDefault(); onStart(); });
+      btn.addEventListener('touchend', (e) => { e.preventDefault(); onEnd(); });
+      btn.addEventListener('mousedown', onStart);
+      btn.addEventListener('mouseup', onEnd);
+      btn.addEventListener('mouseleave', onEnd);
+    }
+
+    bindTouch(btnLeft, () => moveLeft = true, () => moveLeft = false);
+    bindTouch(btnRight, () => moveRight = true, () => moveRight = false);
+    bindTouch(btnFire, () => { isFiring = true; fireBullet(); }, () => isFiring = false);
+
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
